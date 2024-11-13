@@ -1,0 +1,103 @@
+
+#Here's the code for the automated web scrapping and reporting tool......
+
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import os
+
+# 1. Scrape data from multiple websites
+def scrape_website(url):
+    print(f"Scraping {url}...")
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Example: Scraping article titles and links from a blog (change according to your target website)
+    articles = soup.find_all('h2')  # assuming articles are in <h2> tags, change accordingly
+    data = []
+    
+    for article in articles:
+        title = article.text.strip()
+        link = article.find('a')['href'] if article.find('a') else None
+        data.append({'Title': title, 'Link': link})
+    
+    return data
+
+# 2. Aggregate data into a DataFrame
+def aggregate_data():
+    urls = ['https://example-blog1.com', 'https://example-blog2.com']  # List of URLs to scrape
+    all_data = []
+    
+    for url in urls:
+        data = scrape_website(url)
+        all_data.extend(data)
+    
+    # Convert list of dicts to DataFrame
+    df = pd.DataFrame(all_data)
+    return df
+
+# 3. Generate the report (CSV or HTML)
+def generate_report(df):
+    # Save report as CSV
+    report_csv = 'scraping_report.csv'
+    df.to_csv(report_csv, index=False)
+    
+    # Or generate HTML report
+    report_html = 'scraping_report.html'
+    df.to_html(report_html, index=False)
+    
+    return report_csv, report_html
+
+# 4. Send email with attachment
+def send_email(report_csv, report_html, recipient_email):
+    sender_email = 'your_email@example.com'  # Change this to your email
+    sender_password = 'your_email_password'  # Change to your email password or app password
+
+    # Email setup
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = 'Automated Web Scraping Report'
+
+    # Add the body of the email
+    body = 'Please find the attached web scraping report.'
+    msg.attach(MIMEText(body, 'plain'))
+
+    # Attach CSV and HTML report files
+    for report in [report_csv, report_html]:
+        part = MIMEBase('application', 'octet-stream')
+        with open(report, 'rb') as file:
+            part.set_payload(file.read())
+        
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(report)}')
+        msg.attach(part)
+
+    # Connect to the SMTP server (using Gmail's SMTP for this example)
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, msg.as_string())
+            print(f"Email sent to {recipient_email}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+# Main function to run the entire process
+def main():
+    # Step 1: Scrape and aggregate data
+    df = aggregate_data()
+
+    # Step 2: Generate report
+    report_csv, report_html = generate_report(df)
+
+    # Step 3: Send the report via email
+    recipient_email = 'recipient@example.com'  # Change to the recipient's email address
+    send_email(report_csv, report_html, recipient_email)
+
+if _name_ == "_main_":
+    main()
